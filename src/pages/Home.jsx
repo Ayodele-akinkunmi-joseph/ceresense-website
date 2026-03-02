@@ -61,7 +61,7 @@ const Home = () => {
     }
   ];
 
-  // Static content configuration
+  // Static content configuration - FIXED: Changed http to https
   const staticContent = {
     badge: "Future-Ready Education",
     title: "Building Future-Ready Tech Professionals",
@@ -70,7 +70,7 @@ const Home = () => {
     primaryButton: "Explore Programs",
     primaryLink: "https://portal.ceresense.com.ng/landing",
     secondaryButton: "2026 Cohort",
-    secondaryLink: "http://portal.ceresense.com.ng/",
+    secondaryLink: "https://portal.ceresense.com.ng/",
     stats: [
       { number: "127+", label: "Students Trained", icon: <GraduationCap size={24} /> },
       { number: "10+", label: "Real Projects", icon: <Zap size={24} /> },
@@ -141,7 +141,7 @@ const Home = () => {
     autoPlayRef.current = setInterval(() => {
       nextSlide();
     }, 8000);
-  }, [clearIntervals]);
+  }, [clearIntervals, nextSlide]);
 
   useEffect(() => {
     startAutoPlay();
