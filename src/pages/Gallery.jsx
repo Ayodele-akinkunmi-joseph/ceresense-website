@@ -59,20 +59,18 @@ const Gallery = () => {
       setLoading(true);
       setError(null);
       
-      // Add CORS proxy if needed (temporary fix)
-      // const response = await galleryApi.getAll({
-      //   status: 'active',
-      //   limit: 50
-      // });
+      // Use the galleryApi from your services - NO PROXY
+      const response = await galleryApi.getAll({
+        status: 'active',
+        limit: 50
+      });
       
-      // For now, use a CORS proxy to bypass the issue
-      // Once your backend CORS is fixed, remove this and use the above
-      const response = await fetch('https://cors-anywhere.herokuapp.com/https://ceresense-backend-2.onrender.com/gallery?status=active&limit=50');
-      const data = await response.json();
+      console.log("API Response:", response);
       
-      console.log("API Response:", data);
+      // Handle response based on your API structure
+      const imagesData = response.data || response;
       
-      const formattedImages = data.data.map(item => ({
+      const formattedImages = imagesData.map(item => ({
         id: item._id,
         src: item.imageUrl && item.imageUrl.startsWith('http') 
           ? item.imageUrl 
@@ -90,7 +88,20 @@ const Gallery = () => {
       setGalleryImages(formattedImages);
     } catch (err) {
       console.error('Error fetching gallery:', err);
-      setError(err.message);
+      
+      // User-friendly error messages
+      if (err.message?.includes('Network Error') || err.code === 'ERR_NETWORK') {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else if (err.message?.includes('CORS')) {
+        setError('Server configuration issue. Please contact support.');
+      } else if (err.response?.status === 403) {
+        setError('Access forbidden. Please check your permissions.');
+      } else if (err.response?.status === 404) {
+        setError('Gallery endpoint not found.');
+      } else {
+        setError(err.message || 'Failed to load gallery');
+      }
+      
       setGalleryImages([]);
     } finally {
       setLoading(false);
@@ -99,19 +110,17 @@ const Gallery = () => {
 
   const fetchStats = async () => {
     try {
-      // const statsData = await galleryApi.getStats();
-      // const categoryStats = await galleryApi.getCategoryStats();
-      
-      // Using fetch with CORS proxy
-      const statsResponse = await fetch('https://cors-anywhere.herokuapp.com/https://ceresense-backend-2.onrender.com/gallery/stats');
-      const statsData = await statsResponse.json();
+      // Use the galleryApi from your services - NO PROXY
+      const statsData = await galleryApi.getStats();
+      const categoryStats = await galleryApi.getCategoryStats();
       
       setStats({
         total: statsData.total || 0,
-        categories: statsData.categories || []
+        categories: categoryStats || []
       });
     } catch (err) {
       console.error('Error fetching stats:', err);
+      // Don't set error state for stats, just log it
     }
   };
 

@@ -18,7 +18,8 @@ import {
   CheckCircle,
   Tag,
   Loader2,
-  Eye  // ADD THIS IMPORT
+  Eye,
+  AlertCircle
 } from "lucide-react";
 import "../../styles/admin/Admin.css";
 
@@ -26,55 +27,96 @@ import "../../styles/admin/Admin.css";
 const blogApi = {
   getAll: async () => {
     const token = localStorage.getItem('accessToken');
-    const response = await fetch('https://ceresense-backend-2.onrender.com/blog', {
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
+    try {
+      const response = await fetch('https://ceresense-backend-2.onrender.com/blog', {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
       }
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    console.log("📦 Raw API Response:", data);
-    return data;
+      
+      const data = await response.json();
+      console.log("📦 Raw API Response:", data);
+      return data;
+    } catch (error) {
+      console.error('❌ API Error:', error);
+      throw error;
+    }
   },
   
   create: async (data) => {
     const token = localStorage.getItem('accessToken');
-    const response = await fetch('https://ceresense-backend-2.onrender.com/blog', {
-      method: 'POST',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    try {
+      const response = await fetch('https://ceresense-backend-2.onrender.com/blog', {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Error:', error);
+      throw error;
+    }
   },
   
   update: async (id, data) => {
     const token = localStorage.getItem('accessToken');
-    const response = await fetch(`https://ceresense-backend-2.onrender.com/blog/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    try {
+      const response = await fetch(`https://ceresense-backend-2.onrender.com/blog/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Error:', error);
+      throw error;
+    }
   },
   
   delete: async (id) => {
     const token = localStorage.getItem('accessToken');
-    const response = await fetch(`https://ceresense-backend-2.onrender.com/blog/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : ''
+    try {
+      const response = await fetch(`https://ceresense-backend-2.onrender.com/blog/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
       }
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+      
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Error:', error);
+      throw error;
+    }
   }
 };
 
@@ -89,11 +131,12 @@ const BlogManagement = () => {
     content: "",
     category: "Web Development",
     tags: "",
-    isPublished: true  // CHANGE TO TRUE BY DEFAULT
+    isPublished: true
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   const categories = [
     "Web Development",
@@ -126,6 +169,8 @@ const BlogManagement = () => {
         postsData = response;
       } else if (response && Array.isArray(response.data)) {
         postsData = response.data;
+      } else if (response && response.posts && Array.isArray(response.posts)) {
+        postsData = response.posts;
       } else {
         console.warn("Unexpected response format:", response);
         postsData = [];
@@ -139,10 +184,31 @@ const BlogManagement = () => {
       });
       
       setPosts(postsData);
+      setRetryCount(0); // Reset retry count on success
       
     } catch (err) {
       console.error('❌ Error fetching blog posts:', err);
-      setError("Failed to load blog posts");
+      
+      // User-friendly error messages
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else if (err.message?.includes('401')) {
+        setError('Authentication failed. Please log in again.');
+        // Redirect to login after 2 seconds
+        setTimeout(() => {
+          window.location.href = '/admin/login';
+        }, 2000);
+      } else if (err.message?.includes('403')) {
+        setError('Access forbidden. You do not have permission to view blog posts.');
+      } else if (err.message?.includes('404')) {
+        setError('Blog endpoint not found. Please check API configuration.');
+      } else if (err.message?.includes('CORS')) {
+        setError('CORS error. Server is not configured to accept requests from this domain.');
+      } else {
+        setError(`Failed to load blog posts: ${err.message}`);
+      }
+      
+      setPosts([]);
     } finally {
       setLoading(false);
     }
@@ -176,41 +242,54 @@ const BlogManagement = () => {
     setUploading(true);
 
     try {
-      // Prepare post data - ensure isPublished is true for new posts
+      // Prepare post data
+      const tagsArray = formData.tags
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0);
+
       const postData = {
         title: formData.title.trim(),
         excerpt: formData.excerpt.trim(),
-        content: formData.content.trim(),
+        content: formData.content.trim() || "Content coming soon...",
         category: formData.category,
-        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+        tags: tagsArray,
         readTime: "5 min read",
-        isPublished: true, // FORCE TO TRUE FOR ALL NEW POSTS
-        coverImage: imagePreview || null
+        isPublished: editingPost ? formData.isPublished : true, // Force true for new posts
+        coverImage: imagePreview || null,
+        author: {
+          name: "Admin",
+          role: "Editor"
+        }
       };
 
       console.log("📤 Sending data:", postData);
 
       if (editingPost) {
-        // Update existing post - keep existing isPublished value
-        const updateData = {
-          ...postData,
-          isPublished: formData.isPublished // Use form checkbox value for edits
-        };
-        await blogApi.update(editingPost.id, updateData);
+        // Update existing post
+        await blogApi.update(editingPost.id, postData);
         alert('✅ Post updated successfully!');
       } else {
-        // Create new post - always published
+        // Create new post
         await blogApi.create(postData);
         alert('✅ Post created successfully!');
       }
 
       // Refresh the posts list
-      fetchBlogPosts();
+      await fetchBlogPosts();
       resetForm();
       
     } catch (err) {
       console.error('❌ Error saving post:', err);
-      setError(err.message || 'Failed to save post');
+      
+      if (err.message?.includes('401')) {
+        setError('Authentication failed. Please log in again.');
+        setTimeout(() => {
+          window.location.href = '/admin/login';
+        }, 2000);
+      } else {
+        setError(err.message || 'Failed to save post');
+      }
     } finally {
       setUploading(false);
     }
@@ -224,7 +303,7 @@ const BlogManagement = () => {
       content: "",
       category: "Web Development",
       tags: "",
-      isPublished: true // RESET TO TRUE
+      isPublished: true
     });
     setImagePreview(null);
     setShowCreateForm(false);
@@ -242,17 +321,23 @@ const BlogManagement = () => {
       content: post.content || "",
       category: post.category || "Web Development",
       tags: (post.tags && Array.isArray(post.tags)) ? post.tags.join(', ') : "",
-      isPublished: post.isPublished !== false // Ensure true unless explicitly false
+      isPublished: post.isPublished !== false
     });
     if (post.coverImage) {
-      setImagePreview(post.coverImage);
+      // Handle image URL formatting
+      const fullUrl = post.coverImage.startsWith('http') 
+        ? post.coverImage 
+        : post.coverImage.startsWith('/') 
+          ? `https://ceresense-backend-2.onrender.com${post.coverImage}`
+          : post.coverImage;
+      setImagePreview(fullUrl);
     }
     setShowCreateForm(true);
   };
 
   // Handle delete
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this post?')) {
+    if (!window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
       return;
     }
 
@@ -262,7 +347,13 @@ const BlogManagement = () => {
       fetchBlogPosts();
     } catch (err) {
       console.error('❌ Error deleting post:', err);
-      alert('Failed to delete post');
+      
+      if (err.message?.includes('401')) {
+        alert('Authentication failed. Please log in again.');
+        window.location.href = '/admin/login';
+      } else {
+        alert(`Failed to delete post: ${err.message}`);
+      }
     }
   };
 
@@ -270,7 +361,9 @@ const BlogManagement = () => {
   const formatDate = (dateString) => {
     try {
       if (!dateString) return 'No date';
-      return new Date(dateString).toLocaleDateString('en-US', {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
@@ -282,7 +375,7 @@ const BlogManagement = () => {
 
   // Get status text and color
   const getStatusInfo = (isPublished) => {
-    if (isPublished === true || isPublished === undefined) {
+    if (isPublished === true) {
       return { text: 'Published', color: 'green', icon: '🚀' };
     }
     return { text: 'Draft', color: 'gray', icon: '📝' };
@@ -304,7 +397,7 @@ const BlogManagement = () => {
     }
   };
 
-  if (loading) {
+  if (loading && posts.length === 0) {
     return (
       <div className="management-page">
         <div className="loading-state">
@@ -342,19 +435,24 @@ const BlogManagement = () => {
 
       {/* Error Message */}
       {error && (
-        <div className="error-alert">
-          <X size={20} />
+        <div className="error-banner">
+          <AlertCircle size={18} />
           <span>{error}</span>
           <button onClick={() => setError("")} className="error-close">
             <X size={16} />
           </button>
+          {error.includes('connection') && (
+            <button onClick={fetchBlogPosts} className="retry-btn">
+              Retry
+            </button>
+          )}
         </div>
       )}
 
       {/* Create/Edit Form Modal */}
       {showCreateForm && (
         <div className="modal-overlay">
-          <div className="modal large">
+          <div className="modal-content large">
             <div className="modal-header">
               <h3>
                 {editingPost ? '✏️ Edit Post' : '📝 Create New Post'}
@@ -424,7 +522,7 @@ const BlogManagement = () => {
 
               {/* Category & Tags */}
               <div className="form-row">
-                <div className="form-section">
+                <div className="form-section half">
                   <label className="form-label">
                     <Tag size={18} />
                     <span>Category *</span>
@@ -443,7 +541,7 @@ const BlogManagement = () => {
                   </select>
                 </div>
 
-                <div className="form-section">
+                <div className="form-section half">
                   <label className="form-label">
                     <Tag size={18} />
                     <span>Tags</span>
@@ -453,12 +551,33 @@ const BlogManagement = () => {
                     name="tags"
                     value={formData.tags}
                     onChange={handleInputChange}
-                    placeholder="web, development, tutorial (comma separated)"
+                    placeholder="web, development, tutorial"
                     className="form-input"
                     disabled={uploading}
                   />
+                  <small className="help-text">Comma separated</small>
                 </div>
               </div>
+
+              {/* Cover Image Preview */}
+              {imagePreview && (
+                <div className="form-section">
+                  <label className="form-label">
+                    <ImageIcon size={18} />
+                    <span>Cover Image Preview</span>
+                  </label>
+                  <div className="image-preview">
+                    <img src={imagePreview} alt="Cover preview" />
+                    <button
+                      type="button"
+                      className="remove-image"
+                      onClick={() => setImagePreview(null)}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Publish Status - Only show for editing */}
               {editingPost && (
@@ -467,18 +586,16 @@ const BlogManagement = () => {
                     <CheckCircle size={18} />
                     <span>Publish Status</span>
                   </label>
-                  <div className="status-options">
-                    <label className="status-option">
-                      <input
-                        type="checkbox"
-                        name="isPublished"
-                        checked={formData.isPublished}
-                        onChange={handleInputChange}
-                        disabled={uploading}
-                      />
-                      <span>Published</span>
-                    </label>
-                  </div>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      name="isPublished"
+                      checked={formData.isPublished}
+                      onChange={handleInputChange}
+                      disabled={uploading}
+                    />
+                    <span>Published (visible to visitors)</span>
+                  </label>
                 </div>
               )}
 
@@ -486,7 +603,7 @@ const BlogManagement = () => {
               <div className="form-actions">
                 <button 
                   type="button" 
-                  className="btn-secondary"
+                  className="secondary-btn"
                   onClick={resetForm}
                   disabled={uploading}
                 >
@@ -495,7 +612,7 @@ const BlogManagement = () => {
                 </button>
                 <button 
                   type="submit" 
-                  className="btn-primary"
+                  className="primary-btn"
                   disabled={uploading}
                 >
                   {uploading ? (
@@ -522,7 +639,7 @@ const BlogManagement = () => {
       )}
 
       {/* Posts Table */}
-      {posts.length === 0 ? (
+      {posts.length === 0 && !loading ? (
         <div className="empty-state">
           <FileText size={48} />
           <h3>📭 No blog posts yet</h3>
@@ -555,31 +672,29 @@ const BlogManagement = () => {
                   const status = getStatusInfo(post.isPublished);
                   return (
                     <tr key={post.id} className="table-row">
-                     // In your BlogManagement.jsx, replace just the image cell code with this:
-
-<td className="image-cell">
-  <div className="table-image">
-    {post.coverImage ? (
-      <img 
-        src={
-          // If it's already a full URL, use it
-          post.coverImage.startsWith('http') 
-            ? post.coverImage 
-            // If it starts with /, add localhost:4000
-            : post.coverImage.startsWith('/') 
-              ? `https://ceresense-backend-2.onrender.com${post.coverImage}`
-              // Otherwise, just show whatever it is (might be a relative path)
-              : post.coverImage
-        } 
-        alt={post.title}
-      />
-    ) : (
-      <div className="image-placeholder">
-        <FileText size={24} />
-      </div>
-    )}
-  </div>
-</td>
+                      <td className="image-cell">
+                        <div className="table-image">
+                          {post.coverImage ? (
+                            <img 
+                              src={
+                                post.coverImage.startsWith('http') 
+                                  ? post.coverImage 
+                                  : post.coverImage.startsWith('/') 
+                                    ? `https://ceresense-backend-2.onrender.com${post.coverImage}`
+                                    : post.coverImage
+                              } 
+                              alt={post.title}
+                              onError={(e) => {
+                                e.target.src = 'https://via.placeholder.com/100x75/3b82f6/ffffff?text=Blog';
+                              }}
+                            />
+                          ) : (
+                            <div className="image-placeholder">
+                              <FileText size={24} />
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="details-cell">
                         <div className="details-content">
                           <h4>{post.title || 'Untitled'}</h4>

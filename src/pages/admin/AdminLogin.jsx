@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { authApi } from "../../services/api"; // Import the API service
+import { authApi } from "../../services/api";
 import "../../styles/admin/Admin.css";
 
 const AdminLogin = () => {
@@ -61,19 +61,25 @@ const AdminLogin = () => {
     }
   };
 
-  const fillDemoCredentials = () => {
-    setCredentials({
-      username: 'testuser', // Use a test user from your backend
-      password: 'Password123!'
-    });
-    setError('');
-  };
-
   return (
     <div className="login-page">
       <div className="auth-container">
         <div className="auth-header">
-          <div className="auth-logo">C</div>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            marginBottom: '20px' 
+          }}>
+            <img 
+              src="/logo.png" 
+              alt="CERESENSE Logo" 
+              style={{ 
+                width: '120px', 
+                height: 'auto', 
+                objectFit: 'contain'
+              }}
+            />
+          </div>
           <h1 className="auth-title">Admin Portal</h1>
           <p className="auth-subtitle">Secure access to CERESENSE dashboard</p>
         </div>
@@ -118,12 +124,6 @@ const AdminLogin = () => {
             </div>
           </div>
 
-          {/* <div className="auth-links">
-            <Link to="/admin/forgot-password" className="auth-link">
-              Forgot Password?
-            </Link>
-          </div> */}
-
           {loading ? (
             <div className="loading-state">
               <div className="loading-spinner"></div>
@@ -134,14 +134,6 @@ const AdminLogin = () => {
               SIGN IN
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={fillDemoCredentials}
-            className="demo-button"
-          >
-            Use Test Credentials
-          </button>
         </form>
 
         <div className="auth-footer">
@@ -150,9 +142,6 @@ const AdminLogin = () => {
             <Link to="/admin/register" className="auth-link">
               Request access
             </Link>
-          </p>
-          <p className="credentials-note">
-            Test: testuser / Password123!
           </p>
         </div>
       </div>

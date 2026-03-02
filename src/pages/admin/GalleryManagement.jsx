@@ -42,7 +42,7 @@ const GalleryManagement = () => {
   useEffect(() => {
     fetchImages();
     fetchStats();
-  }, [page, selectedCategory]);
+  }, [page, selectedCategory, searchQuery]);
 
   // Fetch gallery images
   const fetchImages = async () => {
@@ -62,11 +62,15 @@ const GalleryManagement = () => {
       let imagesData = [];
       let pages = 1;
       
+      // Handle different response formats
       if (Array.isArray(response)) {
         imagesData = response;
       } else if (response && Array.isArray(response.data)) {
         imagesData = response.data;
         pages = response.totalPages || response.pages || 1;
+      } else if (response && response.images && Array.isArray(response.images)) {
+        imagesData = response.images;
+        pages = response.totalPages || 1;
       } else {
         imagesData = [];
       }
@@ -76,7 +80,16 @@ const GalleryManagement = () => {
       
     } catch (error) {
       console.error("Error fetching images:", error);
-      setError(`Failed to load images: ${error.response?.data?.message || error.message}`);
+      
+      // User-friendly error messages
+      if (error.message?.includes('Network Error') || error.code === 'ERR_NETWORK') {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else if (error.message?.includes('CORS')) {
+        setError('Server configuration issue. Please contact support.');
+      } else {
+        setError(error.response?.data?.message || error.message || 'Failed to load images');
+      }
+      
       setImages([]);
     } finally {
       setLoading(false);
@@ -102,6 +115,7 @@ const GalleryManagement = () => {
       
     } catch (error) {
       console.error("Error fetching stats:", error);
+      // Don't set error state for stats, just log it
     }
   };
 
@@ -193,11 +207,14 @@ const GalleryManagement = () => {
         alert('✅ Image uploaded successfully!');
       }
 
-      fetchImages();
-      fetchStats();
+      // Refresh data
+      await fetchImages();
+      await fetchStats();
       resetForm();
       
     } catch (error) {
+      console.error('Error saving image:', error);
+      
       const errorMessage = error.response?.data?.message || error.message || 'Failed to save image';
       setError(errorMessage);
       alert(`❌ ${errorMessage}`);
@@ -256,9 +273,13 @@ const GalleryManagement = () => {
     try {
       await galleryApi.delete(id);
       alert('✅ Image deleted successfully!');
-      fetchImages();
-      fetchStats();
+      
+      // Refresh data
+      await fetchImages();
+      await fetchStats();
+      
     } catch (error) {
+      console.error('Error deleting image:', error);
       alert(`❌ Failed to delete image: ${error.response?.data?.message || error.message}`);
     }
   };
@@ -266,12 +287,26 @@ const GalleryManagement = () => {
   // Handle search
   const handleSearch = (e) => {
     if (e.key === 'Enter') {
+      setPage(1); // Reset to first page on new search
       fetchImages();
     }
   };
 
-  // Add CSS for the modal in your Admin.css
-  const modalStyles = `
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery) {
+        setPage(1);
+        fetchImages();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Combined styles (your original modal styles + responsive styles)
+  const styles = `
+    /* ===== YOUR ORIGINAL MODAL STYLES (PRESERVED) ===== */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -533,12 +568,546 @@ const GalleryManagement = () => {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
+
+    /* ===== RESPONSIVE MANAGEMENT PAGE STYLES ===== */
+    .management-page {
+      padding: 24px;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .page-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 24px;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 0 0 4px 0;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      color: #64748b;
+      margin: 0;
+    }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .stat-item {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .stat-item svg {
+      color: #3b82f6;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-right: 8px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .table-filters {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .search-container {
+      flex: 1;
+      min-width: 280px;
+      display: flex;
+      align-items: center;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0 12px;
+    }
+
+    .search-container svg {
+      color: #94a3b8;
+    }
+
+    .search-container input {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      outline: none;
+      font-size: 14px;
+    }
+
+    .category-filter {
+      min-width: 200px;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: white;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .table-container {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 800px;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 16px;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .data-table td {
+      padding: 16px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 14px;
+    }
+
+    .table-row:hover {
+      background: #f8fafc;
+    }
+
+    .image-cell {
+      width: 80px;
+    }
+
+    .table-image {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f1f5f9;
+    }
+
+    .table-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .details-cell {
+      max-width: 300px;
+    }
+
+    .details-content h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 0 0 4px 0;
+    }
+
+    .details-content p {
+      font-size: 13px;
+      color: #64748b;
+      margin: 0 0 8px 0;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .tags {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      padding: 2px 8px;
+      background: #f1f5f9;
+      border-radius: 12px;
+      font-size: 11px;
+      color: #475569;
+    }
+
+    .tag-more {
+      padding: 2px 8px;
+      background: #e2e8f0;
+      border-radius: 12px;
+      font-size: 11px;
+      color: #475569;
+    }
+
+    .category-badge {
+      padding: 4px 12px;
+      background: #dbeafe;
+      color: #2563eb;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-block;
+    }
+
+    .status-badge.active {
+      background: #d1fae5;
+      color: #059669;
+    }
+
+    .status-badge.draft {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .status-badge.archived {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    .featured-badge {
+      padding: 4px 12px;
+      background: #f1f5f9;
+      color: #64748b;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .featured-badge.active {
+      background: #fef3c7;
+      color: #d97706;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn {
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .action-btn.edit:hover {
+      background: #dbeafe;
+      color: #2563eb;
+    }
+
+    .action-btn.delete:hover {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    .table-pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      padding: 20px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .table-pagination button {
+      padding: 8px 16px;
+      background: #f1f5f9;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #475569;
+    }
+
+    .table-pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .error-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: #fee2e2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      color: #dc2626;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .retry-btn {
+      padding: 4px 12px;
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: auto;
+    }
+
+    .error-close {
+      padding: 4px;
+      background: none;
+      border: none;
+      color: #dc2626;
+      cursor: pointer;
+    }
+
+    .loading-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      gap: 16px;
+      color: #64748b;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #94a3b8;
+    }
+
+    .empty-state h3 {
+      color: #1e293b;
+      margin: 16px 0 8px;
+    }
+
+    /* ===== RESPONSIVE MEDIA QUERIES ===== */
+    
+    @media (max-width: 1024px) {
+      .management-page {
+        padding: 20px;
+      }
+
+      .stats-bar {
+        gap: 16px;
+      }
+
+      .stat-item {
+        padding: 16px;
+      }
+
+      .stat-value {
+        font-size: 22px;
+      }
+      
+      .modal-content {
+        max-width: 90%;
+        margin: 0 20px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .management-page {
+        padding: 16px;
+      }
+
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .page-title {
+        font-size: 22px;
+      }
+
+      .stats-bar {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+
+      .stat-item {
+        flex-direction: column;
+        text-align: center;
+        padding: 12px;
+      }
+
+      .table-filters {
+        flex-direction: column;
+      }
+
+      .search-container {
+        width: 100%;
+      }
+
+      .category-filter {
+        width: 100%;
+      }
+      
+      .modal-header {
+        padding: 20px 24px;
+      }
+      
+      .upload-form {
+        padding: 24px;
+      }
+      
+      .form-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page-title {
+        font-size: 20px;
+      }
+
+      .stats-bar {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .stat-item {
+        flex-direction: row;
+        text-align: left;
+        padding: 16px;
+      }
+
+      .table-pagination {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .table-pagination button {
+        width: 100%;
+      }
+      
+      .image-preview {
+        height: 200px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .management-page {
+        padding: 12px;
+      }
+
+      .page-header {
+        margin-bottom: 20px;
+      }
+
+      .page-title {
+        font-size: 18px;
+      }
+
+      .page-subtitle {
+        font-size: 13px;
+      }
+
+      .stat-item {
+        padding: 12px;
+      }
+
+      .stat-value {
+        font-size: 20px;
+      }
+
+      .stat-label {
+        font-size: 12px;
+      }
+
+      .data-table td {
+        padding: 12px;
+      }
+
+      .action-buttons {
+        flex-direction: column;
+      }
+
+      .error-banner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .retry-btn {
+        margin-left: 0;
+        width: 100%;
+      }
+      
+      .modal-header {
+        padding: 16px 20px;
+      }
+      
+      .modal-header h3 {
+        font-size: 18px;
+      }
+      
+      .upload-form {
+        padding: 20px;
+      }
+      
+      .image-preview {
+        height: 180px;
+      }
+      
+      .file-input-label {
+        width: 100%;
+        justify-content: center;
+      }
+      
+      .form-actions {
+        flex-direction: column;
+      }
+      
+      .form-actions button {
+        width: 100%;
+      }
+    }
   `;
 
-  // Add the modal styles to the document
+  // Add the styles to the document
   useEffect(() => {
     const styleElement = document.createElement('style');
-    styleElement.textContent = modalStyles;
+    styleElement.textContent = styles;
     document.head.appendChild(styleElement);
     
     return () => {
@@ -601,7 +1170,10 @@ const GalleryManagement = () => {
         </div>
         <select 
           value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
+          onChange={(e) => {
+            setSelectedCategory(e.target.value);
+            setPage(1);
+          }}
           className="category-filter"
         >
           <option value="all">All Categories</option>
@@ -618,6 +1190,9 @@ const GalleryManagement = () => {
         <div className="error-banner">
           <AlertCircle size={18} />
           <span>{error}</span>
+          <button onClick={fetchImages} className="retry-btn">
+            Retry
+          </button>
         </div>
       )}
 
@@ -625,7 +1200,7 @@ const GalleryManagement = () => {
       <div className="table-container">
         {loading ? (
           <div className="loading-state">
-            <Loader2 className="loading" size={32} />
+            <Loader2 className="animate-spin" size={32} />
             <p>Loading images...</p>
           </div>
         ) : images.length === 0 ? (

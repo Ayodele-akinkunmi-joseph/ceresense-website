@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { authApi } from "../../services/api"; // Import the API service
+import { authApi } from "../../services/api";
 import "../../styles/admin/register.css";
 
 const AdminRegister = () => {
@@ -119,7 +119,21 @@ const AdminRegister = () => {
     <div className="login-page">
       <div className="auth-container">
         <div className="auth-header">
-          <div className="auth-logo">C</div>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            marginBottom: '20px' 
+          }}>
+            <img 
+              src="/logo.png" 
+              alt="CERESENSE Logo" 
+              style={{ 
+                width: '120px', 
+                height: 'auto', 
+                objectFit: 'contain'
+              }}
+            />
+          </div>
           <h1 className="auth-title">Create Admin Account</h1>
           <p className="auth-subtitle">Register for CERESENSE admin access</p>
         </div>

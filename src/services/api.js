@@ -31,6 +31,29 @@ api.interceptors.response.use(
   }
 );
 
+// Helper function to handle form data
+const createFormData = (data, file, fileFieldName = 'image') => {
+  const formData = new FormData();
+  
+  // Add all text fields
+  Object.keys(data).forEach(key => {
+    if (key !== fileFieldName && data[key] !== undefined && data[key] !== null) {
+      if (key === 'tags' && Array.isArray(data[key])) {
+        formData.append(key, JSON.stringify(data[key]));
+      } else {
+        formData.append(key, data[key]);
+      }
+    }
+  });
+  
+  // Add file if exists
+  if (file) {
+    formData.append(fileFieldName, file);
+  }
+  
+  return formData;
+};
+
 // Auth API
 export const authApi = {
   register: async (userData) => {
@@ -57,9 +80,8 @@ export const authApi = {
 
 // Gallery API methods
 export const galleryApi = {
-  // Get all gallery items - FIXED: Convert page and limit to numbers
+  // Get all gallery items
   getAll: async (params = {}) => {
-    // Convert page and limit to numbers to fix backend validation
     const processedParams = { ...params };
     
     if (processedParams.page !== undefined) {
@@ -72,7 +94,7 @@ export const galleryApi = {
     const response = await api.get('/gallery', { 
       params: processedParams,
       paramsSerializer: {
-        indexes: null // Ensures arrays are not indexed
+        indexes: null
       }
     });
     return response.data;
@@ -112,7 +134,6 @@ export const galleryApi = {
       featured: Boolean(data.featured)
     };
     
-    console.log('Sending update data:', cleanData);
     const response = await api.put(`/gallery/${id}`, cleanData);
     return response.data;
   },
@@ -158,7 +179,6 @@ export const galleryApi = {
 export const blogApi = {
   // Get all blog posts
   getAll: async (params = {}) => {
-    // Convert page and limit to numbers
     const processedParams = { ...params };
     
     if (processedParams.page !== undefined) {
@@ -195,34 +215,80 @@ export const blogApi = {
     return response.data;
   },
   
-  // Create blog post
-  create: async (data) => {
-    // Ensure tags is an array
-    const cleanData = {
-      ...data,
-      tags: Array.isArray(data.tags) ? data.tags : 
-            (typeof data.tags === 'string' ? data.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : []),
-      isPublished: data.status === 'published'
-    };
-    
-    console.log('Creating blog post:', cleanData);
-    const response = await api.post('/blog', cleanData);
-    return response.data;
+  // Create blog post with image
+  create: async (data, imageFile = null) => {
+    if (imageFile) {
+      // If there's an image, use FormData
+      const formData = new FormData();
+      
+      // Add all text fields
+      Object.keys(data).forEach(key => {
+        if (data[key] !== undefined && data[key] !== null) {
+          if (key === 'tags' && Array.isArray(data[key])) {
+            formData.append(key, JSON.stringify(data[key]));
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+      
+      // Add image file
+      formData.append('coverImage', imageFile);
+      
+      const response = await api.post('/blog', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } else {
+      // No image, send as JSON
+      const cleanData = {
+        ...data,
+        tags: Array.isArray(data.tags) ? data.tags : 
+              (typeof data.tags === 'string' ? data.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : []),
+        isPublished: data.isPublished !== undefined ? data.isPublished : true,
+      };
+      
+      const response = await api.post('/blog', cleanData);
+      return response.data;
+    }
   },
   
-  // Update blog post
-  update: async (id, data) => {
-    // Ensure tags is an array
-    const cleanData = {
-      ...data,
-      tags: Array.isArray(data.tags) ? data.tags : 
-            (typeof data.tags === 'string' ? data.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : []),
-      isPublished: data.status === 'published'
-    };
-    
-    console.log('Updating blog post:', cleanData);
-    const response = await api.put(`/blog/${id}`, cleanData);
-    return response.data;
+  // Update blog post with optional new image
+  update: async (id, data, imageFile = null) => {
+    if (imageFile) {
+      // If there's a new image, use FormData
+      const formData = new FormData();
+      
+      // Add all text fields
+      Object.keys(data).forEach(key => {
+        if (data[key] !== undefined && data[key] !== null) {
+          if (key === 'tags' && Array.isArray(data[key])) {
+            formData.append(key, JSON.stringify(data[key]));
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+      
+      // Add image file
+      formData.append('coverImage', imageFile);
+      
+      const response = await api.put(`/blog/${id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } else {
+      // No new image, send as JSON
+      const cleanData = {
+        ...data,
+        tags: Array.isArray(data.tags) ? data.tags : 
+              (typeof data.tags === 'string' ? data.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : []),
+        isPublished: data.isPublished !== undefined ? data.isPublished : true,
+      };
+      
+      const response = await api.put(`/blog/${id}`, cleanData);
+      return response.data;
+    }
   },
   
   // Delete blog post
@@ -237,39 +303,29 @@ export const blogApi = {
     return response.data;
   },
   
-  // Get comments for post
+  // Get comments for post (if you still need them)
   getComments: async (postId) => {
     const response = await api.get(`/blog/${postId}/comments`);
     return response.data;
   },
   
-  // Create comment
+  // Create comment (if you still need them)
   createComment: async (postId, data) => {
     const response = await api.post(`/blog/${postId}/comments`, data);
     return response.data;
   },
   
-  // Like comment
+  // Like comment (if you still need them)
   likeComment: async (commentId) => {
     const response = await api.post(`/blog/comments/${commentId}/like`);
     return response.data;
   },
   
-  // Delete comment
+  // Delete comment (if you still need them)
   deleteComment: async (commentId) => {
     const response = await api.delete(`/blog/comments/${commentId}`);
     return response.data;
   },
-  
-  // Upload cover image (if you have this endpoint)
-  uploadImage: async (formData) => {
-    // Note: You might need to create a separate endpoint for image uploads
-    // or handle it differently depending on your backend
-    const response = await api.post('/blog/upload-image', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data;
-  }
 };
 
 export default api;

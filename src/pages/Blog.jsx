@@ -5,7 +5,7 @@ import {
   Share2, Send, Sparkles, TrendingUp, ThumbsUp, ThumbsDown, 
   Smile, Eye, ArrowLeft, Loader2, Tag, Award
 } from "lucide-react";
-import { blogApi } from "../services/api"; // Import blogApi
+import { blogApi } from "../services/api";
 import "../styles/Blog.css";
 
 // ==================== BLOG LISTING PAGE ====================
@@ -14,8 +14,10 @@ const BlogListingPage = ({ onPostSelect }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [uiReady, setUiReady] = useState(false);
 
   useEffect(() => {
+    setUiReady(true);
     fetchBlogPosts();
   }, []);
 
@@ -24,21 +26,28 @@ const BlogListingPage = ({ onPostSelect }) => {
       setLoading(true);
       setError(null);
       
-      // Use the blogApi from your services
       const response = await blogApi.getAll();
       
-      // Handle response format - adjust based on your actual API response
-      if (response && response.data) {
-        setPosts(response.data);
-      } else if (Array.isArray(response)) {
-        setPosts(response);
-      } else {
-        setPosts([]);
-      }
+      // Handle response format
+      const postsData = response.data || response;
+      setPosts(Array.isArray(postsData) ? postsData : []);
       
     } catch (err) {
       console.error('Error fetching blog posts:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load blog posts');
+      
+      // User-friendly error messages
+      if (err.message?.includes('Network Error') || err.code === 'ERR_NETWORK') {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else if (err.message?.includes('CORS')) {
+        setError('Server configuration issue. Please contact support.');
+      } else if (err.response?.status === 403) {
+        setError('Access forbidden. Please check your permissions.');
+      } else if (err.response?.status === 404) {
+        setError('Blog endpoint not found.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to load blog posts');
+      }
+      
       setPosts([]);
     } finally {
       setLoading(false);
@@ -58,11 +67,52 @@ const BlogListingPage = ({ onPostSelect }) => {
     }
   };
 
-  if (loading) {
+  // Show skeleton UI while loading
+  if (!uiReady || (loading && posts.length === 0)) {
     return (
-      <div className="blog-loading">
-        <Loader2 className="animate-spin" size={48} />
-        <p>Loading insightful content...</p>
+      <div className="blog-page">
+        {/* Hero Section */}
+        <section className="blog-hero">
+          <div className="blog-hero-container">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              className="blog-hero-content"
+            >
+              <div className="hero-badge">
+                <Sparkles size={20} />
+                <span>CERESENSE INSIGHTS</span>
+              </div>
+              <h1 className="blog-hero-title">
+                Tech Insights & Innovations
+              </h1>
+              <p className="blog-hero-description">
+                Loading insightful content...
+              </p>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Skeleton Grid */}
+        <section className="blog-listing">
+          <div className="listing-container">
+            <div className="listing-header">
+              <h2 className="listing-title">Latest Articles</h2>
+              <p className="listing-subtitle">
+                Please wait while we load the latest content
+              </p>
+            </div>
+            <div className="blog-cards-grid skeleton-grid">
+              {[1,2,3,4,5,6].map(i => (
+                <div key={i} className="blog-card skeleton">
+                  <div className="skeleton-image"></div>
+                  <div className="skeleton-content"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
@@ -97,8 +147,10 @@ const BlogListingPage = ({ onPostSelect }) => {
         <div className="listing-container">
           {error && (
             <div className="api-error">
-              <p>⚠️ Error loading blog posts: {error}</p>
-              <p>Please try again later or contact support.</p>
+              <p>⚠️ {error}</p>
+              <button onClick={fetchBlogPosts} className="retry-btn">
+                Try Again
+              </button>
             </div>
           )}
           
@@ -128,9 +180,14 @@ const BlogListingPage = ({ onPostSelect }) => {
                   {/* Card Image */}
                   <div className="card-image">
                     <img 
-                      src={post.coverImage || "https://images.unsplash.com/photo-1499750310107-5fef28a66643?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80"} 
+                      src={post.coverImage ? (
+                        post.coverImage.startsWith('http') 
+                          ? post.coverImage 
+                          : `https://ceresense-backend-2.onrender.com${post.coverImage}`
+                      ) : "https://images.unsplash.com/photo-1499750310107-5fef28a66643?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80"} 
                       alt={post.title}
                       className="card-img"
+                      loading="lazy"
                       onError={(e) => {
                         e.target.src = "https://images.unsplash.com/photo-1499750310107-5fef28a66643?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80";
                       }}
@@ -146,7 +203,7 @@ const BlogListingPage = ({ onPostSelect }) => {
                     <div className="card-meta">
                       <div className="meta-item">
                         <Calendar size={14} />
-                        <span>{formatDate(post.createdAt || post.date)}</span>
+                        <span>{formatDate(post.createdAt || post.publishedAt || post.date)}</span>
                       </div>
                       <div className="meta-item">
                         <Clock size={14} />
@@ -164,7 +221,7 @@ const BlogListingPage = ({ onPostSelect }) => {
                     <div className="card-author">
                       <div className="author-info">
                         <User size={14} />
-                        <span>{post.author?.name || "CERESENSE Team"}</span>
+                        <span>{post.author?.fullName || post.author?.name || "CERESENSE Team"}</span>
                       </div>
                       <div className="author-role">{post.author?.role || "Author"}</div>
                     </div>
@@ -187,10 +244,6 @@ const BlogListingPage = ({ onPostSelect }) => {
                         <div className="stat">
                           <Heart size={14} />
                           <span>{post.likes || post.likeCount || 0}</span>
-                        </div>
-                        <div className="stat">
-                          <MessageCircle size={14} />
-                          <span>{post.commentsCount || 0}</span>
                         </div>
                       </div>
                       <button className="read-btn">
@@ -221,13 +274,6 @@ const BlogListingPage = ({ onPostSelect }) => {
                   <p>Articles</p>
                 </div>
               </div>
-              <div className="cta-stat">
-                <MessageCircle size={24} />
-                <div>
-                  <h3>Active</h3>
-                  <p>Discussions</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -241,10 +287,7 @@ const BlogListingPage = ({ onPostSelect }) => {
 const BlogDetailPage = ({ postId, onBack }) => {
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState("");
-  const [replyTo, setReplyTo] = useState(null);
-  const [replyText, setReplyText] = useState("");
+  const [error, setError] = useState(null);
   const [reactions, setReactions] = useState({
     likes: 0,
     thumbsUp: 0,
@@ -267,23 +310,13 @@ const BlogDetailPage = ({ postId, onBack }) => {
   const fetchBlogPost = async (postId) => {
     try {
       setLoading(true);
+      setError(null);
       
-      // Fetch post details
       const postResponse = await blogApi.getById(postId);
       const postData = postResponse.data || postResponse;
       
       setPost(postData);
       
-      // Fetch comments for this post
-      try {
-        const commentsResponse = await blogApi.getComments(postId);
-        setComments(commentsResponse.data || commentsResponse || []);
-      } catch (commentError) {
-        console.error('Error fetching comments:', commentError);
-        setComments([]);
-      }
-      
-      // Initialize reactions from API data
       setReactions({
         likes: postData.likes || postData.likeCount || 0,
         thumbsUp: 0,
@@ -293,6 +326,15 @@ const BlogDetailPage = ({ postId, onBack }) => {
       
     } catch (error) {
       console.error('Error fetching blog post:', error);
+      
+      if (error.message?.includes('Network Error')) {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else if (error.response?.status === 404) {
+        setError('Article not found.');
+      } else {
+        setError('Failed to load article. Please try again.');
+      }
+      
       setPost(null);
     } finally {
       setLoading(false);
@@ -302,7 +344,6 @@ const BlogDetailPage = ({ postId, onBack }) => {
   const handleReaction = async (reactionType) => {
     if (!post) return;
     
-    // Update UI immediately
     setUserReactions(prev => ({
       ...prev,
       [reactionType]: !prev[reactionType]
@@ -314,75 +355,12 @@ const BlogDetailPage = ({ postId, onBack }) => {
         (userReactions[reactionType] ? -1 : 1)
     }));
 
-    // Send to API (likes only for now)
     if (reactionType === 'liked') {
       try {
         await blogApi.like(post._id || post.id);
       } catch (error) {
         console.error('Error saving reaction:', error);
       }
-    }
-  };
-
-  const handleSubmitComment = async (e) => {
-    e.preventDefault();
-    if (!newComment.trim() || !post) return;
-
-    try {
-      await blogApi.createComment(post._id || post.id, { 
-        text: newComment,
-        user: {
-          name: "User",
-          role: "Reader"
-        }
-      });
-      
-      // Refresh comments after successful submission
-      const commentsResponse = await blogApi.getComments(post._id || post.id);
-      setComments(commentsResponse.data || commentsResponse || []);
-      
-      setNewComment("");
-    } catch (error) {
-      console.error('Error saving comment:', error);
-      alert('Failed to post comment. Please try again.');
-    }
-  };
-
-  const handleSubmitReply = async (commentId) => {
-    if (!replyText.trim() || !post) return;
-
-    try {
-      // Note: Your API might need a different endpoint for replies
-      await blogApi.createComment(post._id || post.id, { 
-        text: replyText,
-        parentId: commentId,
-        user: {
-          name: "User",
-          role: "Reader"
-        }
-      });
-      
-      // Refresh comments
-      const commentsResponse = await blogApi.getComments(post._id || post.id);
-      setComments(commentsResponse.data || commentsResponse || []);
-      
-      setReplyTo(null);
-      setReplyText("");
-    } catch (error) {
-      console.error('Error saving reply:', error);
-      alert('Failed to post reply. Please try again.');
-    }
-  };
-
-  const handleLikeComment = async (commentId) => {
-    try {
-      await blogApi.likeComment(commentId);
-      
-      // Refresh comments after liking
-      const commentsResponse = await blogApi.getComments(post._id || post.id);
-      setComments(commentsResponse.data || commentsResponse || []);
-    } catch (error) {
-      console.error('Error liking comment:', error);
     }
   };
 
@@ -408,16 +386,15 @@ const BlogDetailPage = ({ postId, onBack }) => {
     );
   }
 
-  if (!post) {
+  if (error || !post) {
     return (
       <div className="blog-page">
         <div className="post-error">
-          <h3>Article not found</h3>
-          <p>The article you're looking for doesn't exist or has been removed.</p>
+          <h3>{error || 'Article not found'}</h3>
+          <p>{error ? 'Please try again.' : 'The article you\'re looking for doesn\'t exist or has been removed.'}</p>
           <button 
             className="back-button" 
             onClick={onBack}
-            style={{ marginTop: '20px' }}
           >
             <ArrowLeft size={20} />
             Back to Articles
@@ -457,12 +434,27 @@ const BlogDetailPage = ({ postId, onBack }) => {
 
           {/* Article Section */}
           <article className="blog-article">
+            {/* Cover Image */}
+            {post.coverImage && (
+              <div className="article-cover">
+                <img 
+                  src={post.coverImage.startsWith('http') 
+                    ? post.coverImage 
+                    : `https://ceresense-backend-2.onrender.com${post.coverImage}`} 
+                  alt={post.title}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+
             {/* Article Header */}
             <div className="article-header">
               <div className="article-meta">
                 <div className="meta-item">
                   <Calendar size={16} />
-                  <span>{formatDate(post.createdAt || post.date)}</span>
+                  <span>{formatDate(post.createdAt || post.publishedAt || post.date)}</span>
                 </div>
                 <div className="meta-item">
                   <Clock size={16} />
@@ -470,22 +462,9 @@ const BlogDetailPage = ({ postId, onBack }) => {
                 </div>
                 <div className="meta-item">
                   <User size={16} />
-                  <span>{post.author?.name || "CERESENSE Team"}</span>
+                  <span>{post.author?.fullName || post.author?.name || "CERESENSE Team"}</span>
                 </div>
               </div>
-
-              {/* Author Info */}
-              {post.author && (
-                <div className="author-card">
-                  <div className="author-avatar">
-                    {post.author.name?.charAt(0) || "C"}
-                  </div>
-                  <div className="author-info">
-                    <h4 className="author-name">{post.author.name || "CERESENSE Team"}</h4>
-                    <p className="author-role">{post.author.role || "Author"}</p>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Article Content */}
@@ -561,157 +540,6 @@ const BlogDetailPage = ({ postId, onBack }) => {
               </div>
             </div>
           </article>
-
-          {/* Comments Section */}
-          <section className="comments-section">
-            <div className="comments-header">
-              <h3 className="comments-title">
-                <MessageCircle size={24} />
-                <span>Discussion ({comments.length})</span>
-              </h3>
-            </div>
-
-            {/* Add Comment Form */}
-            <form onSubmit={handleSubmitComment} className="comment-form">
-              <div className="form-header">
-                <div className="user-avatar">U</div>
-                <div className="form-info">
-                  <h4>Add your comment</h4>
-                  <p>Share your thoughts on this article</p>
-                </div>
-              </div>
-              
-              <div className="form-controls">
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Write your comment here..."
-                  className="comment-input"
-                  rows={4}
-                />
-                
-                <div className="form-actions">
-                  <button type="button" className="emoji-btn">
-                    <Smile size={20} />
-                  </button>
-                  <button type="submit" className="submit-btn">
-                    <Send size={20} />
-                    <span>Post Comment</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-
-            {/* Comments List */}
-            <div className="comments-list">
-              {comments.map((comment) => (
-                <div key={comment._id || comment.id} className="comment-item">
-                  {/* Comment Header */}
-                  <div className="comment-header">
-                    <div className="comment-user">
-                      <div className="comment-avatar">
-                        {comment.user?.name?.charAt(0) || "U"}
-                      </div>
-                      <div className="comment-user-info">
-                        <h4 className="user-name">{comment.user?.name || "User"}</h4>
-                        <p className="user-role">{comment.user?.role || "Reader"}</p>
-                      </div>
-                    </div>
-                    <span className="comment-time">
-                      {comment.createdAt ? formatDate(comment.createdAt) : "Recently"}
-                    </span>
-                  </div>
-
-                  {/* Comment Body */}
-                  <div className="comment-body">
-                    <p className="comment-text">{comment.text}</p>
-                    
-                    <div className="comment-actions">
-                      <button 
-                        className="like-btn"
-                        onClick={() => handleLikeComment(comment._id || comment.id)}
-                      >
-                        <ThumbsUp size={16} />
-                        <span>{comment.likes || 0}</span>
-                      </button>
-                      
-                      <button 
-                        className="reply-btn"
-                        onClick={() => setReplyTo(comment._id || comment.id)}
-                      >
-                        Reply
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Reply Form */}
-                  {replyTo === (comment._id || comment.id) && (
-                    <div className="reply-form">
-                      <textarea
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder="Write your reply..."
-                        className="reply-input"
-                        rows={3}
-                      />
-                      <div className="reply-actions">
-                        <button 
-                          className="cancel-btn"
-                          onClick={() => {
-                            setReplyTo(null);
-                            setReplyText("");
-                          }}
-                        >
-                          Cancel
-                        </button>
-                        <button 
-                          className="submit-reply-btn"
-                          onClick={() => handleSubmitReply(comment._id || comment.id)}
-                        >
-                          Post Reply
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Replies */}
-                  {comment.replies && comment.replies.length > 0 && (
-                    <div className="replies-list">
-                      {comment.replies.map((reply) => (
-                        <div key={reply._id || reply.id} className="reply-item">
-                          <div className="reply-header">
-                            <div className="reply-user">
-                              <div className="reply-avatar">
-                                {reply.user?.name?.charAt(0) || "U"}
-                              </div>
-                              <div className="reply-user-info">
-                                <h5 className="user-name">{reply.user?.name || "User"}</h5>
-                                <p className="user-role">{reply.user?.role || "Reader"}</p>
-                              </div>
-                            </div>
-                            <span className="reply-time">
-                              {reply.createdAt ? formatDate(reply.createdAt) : "Recently"}
-                            </span>
-                          </div>
-                          
-                          <div className="reply-body">
-                            <p className="reply-text">{reply.text}</p>
-                            <button 
-                              className="like-btn"
-                              onClick={() => handleLikeComment(reply._id || reply.id)}
-                            >
-                              <ThumbsUp size={14} />
-                              <span>{reply.likes || 0}</span>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
         </div>
       </section>
     </div>
@@ -721,7 +549,7 @@ const BlogDetailPage = ({ postId, onBack }) => {
 // ==================== MAIN BLOG COMPONENT ====================
 
 const Blog = () => {
-  const [view, setView] = useState('listing'); // 'listing' or 'detail'
+  const [view, setView] = useState('listing');
   const [selectedPostId, setSelectedPostId] = useState(null);
 
   const handlePostSelect = (postId) => {
